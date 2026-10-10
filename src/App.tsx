@@ -3,9 +3,11 @@ import type { CSSProperties, KeyboardEvent } from 'react'
 import { Recommendations } from './components/Recommendations'
 import { appendAnswer, getCurrentQuestion } from './quiz/questions'
 import type { AnswerRecord } from './quiz/questions'
-import { rankWebtoons } from './quiz/recommendations'
+import { normalizeCatalogWebtoon, rankWebtoons } from './quiz/recommendations'
 import type { Webtoon } from './quiz/recommendations'
-import catalog from './data/webtoons.json'
+import catalogJson from './data/webtoons.json'
+
+const catalog = (catalogJson as Webtoon[]).map((item) => normalizeCatalogWebtoon(item))
 
 export type { Provider } from './quiz/recommendations'
 

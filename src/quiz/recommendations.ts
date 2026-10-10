@@ -2,6 +2,29 @@ import { questions } from './questions.ts'
 import type { AnswerRecord, QuestionId, Trait } from './questions.ts'
 
 export type Provider = 'NAVER' | 'KAKAO' | 'KAKAO_PAGE'
+export const normalizeCatalogWebtoon = (
+  raw: Partial<Webtoon> & Pick<Webtoon, 'id' | 'title' | 'provider' | 'url'>,
+): Webtoon => ({
+  id: raw.id,
+  title: raw.title,
+  provider: raw.provider,
+  authors: raw.authors ?? [],
+  thumbnail: raw.thumbnail ?? [],
+  url: raw.url,
+  isEnd: raw.isEnd ?? false,
+  isFree: raw.isFree ?? true,
+  freeWaitHour: raw.freeWaitHour ?? null,
+  ageGrade: raw.ageGrade ?? 0,
+  synopsis: raw.synopsis ?? null,
+  genres: raw.genres ?? [],
+  tags: raw.tags ?? [],
+  averageRating: raw.averageRating ?? null,
+  primaryGenre: raw.primaryGenre ?? 'unknown',
+  totalEpisodeCount: raw.totalEpisodeCount ?? null,
+  isOnHiatus: raw.isOnHiatus ?? null,
+  popularityCount: raw.popularityCount ?? null,
+})
+
 export interface Webtoon {
   id: string
   title: string
@@ -16,6 +39,11 @@ export interface Webtoon {
   synopsis: string | null
   genres: string[]
   tags: string[]
+  averageRating: number | null
+  primaryGenre: string
+  totalEpisodeCount: number | null
+  isOnHiatus: boolean | null
+  popularityCount: number | null
 }
 export interface Recommendation {
   webtoon: Webtoon
