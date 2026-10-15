@@ -25,7 +25,7 @@ npm install
 npm run dev
 ```
 
-로컬은 `/api`를 `http://127.0.0.1:3001`로 프록시합니다. 별도 터미널에서 Backend를 실행해주세요. 배포 시 `VITE_API_URL`을 새 검색·추천 API가 배포된 백엔드 주소로 설정한 후 빌드합니다. `.env.example`에는 기존 Railway 주소가 있으며 새 백엔드 배포가 필요합니다.
+로컬은 `/api`를 `http://127.0.0.1:3001`로 프록시합니다. 별도 터미널에서 Backend를 실행해주세요. Vercel 배포에서는 `vercel.json`의 `/api/:path*` 규칙이 Railway 백엔드로 요청을 전달하며, 이 규칙은 첫 화면으로 보내는 SPA 규칙보다 앞에 있어야 합니다. 같은 도메인으로 API를 호출하므로 `VITE_API_URL`을 설정하지 않아도 됩니다. 다른 백엔드로 직접 연결하려면 해당 환경 변수를 설정하고 다시 빌드하며, 백엔드의 CORS에도 프론트엔드 도메인을 허용해야 합니다. 백엔드 주소를 변경할 때는 프록시 목적지도 함께 수정해주세요.
 
 Backend에서 `npm run dev`를 실행하면 내부 JSON을 사용하는 API가 시작됩니다. Supabase 키는 필요하지 않습니다. Frontend의 `src/data/webtoons.json`을 갱신했다면 Backend에서 `npm run sync:catalog`로 배포용 JSON을 복사한 뒤 백엔드를 재시작해주세요. 프론트는 계속 검색·추천 API를 호출합니다.
 

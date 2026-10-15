@@ -52,6 +52,27 @@ test('result filters send both platform and completion conditions to the backend
   } finally { globalThis.fetch = original }
 })
 
+test('HTML fallback responses produce an API configuration message for search and analysis', async () => {
+  const original = globalThis.fetch
+  try {
+    for (const status of [200, 404]) {
+      globalThis.fetch = async () => new Response('<!doctype html><html></html>', {
+        status, headers: { 'Content-Type': 'text/html; charset=utf-8' },
+      })
+      await assert.rejects(searchWebtoons('', new AbortController().signal), /웹툰 API 연결 설정/)
+      await assert.rejects(analyzeWebtoons(['seed'], new AbortController().signal), /웹툰 API 연결 설정/)
+    }
+  } finally { globalThis.fetch = original }
+})
+
+test('malformed JSON does not expose a parser error to the user', async () => {
+  const original = globalThis.fetch
+  try {
+    globalThis.fetch = async () => new Response('<!doctype html>', { headers: { 'Content-Type': 'application/json' } })
+    await assert.rejects(searchWebtoons('', new AbortController().signal), /올바른 웹툰 데이터를 받지 못했어요/)
+  } finally { globalThis.fetch = original }
+})
+
 test('re-search sends visible recommendation IDs without changing seeds or filters', async () => {
   const original = globalThis.fetch
   try {

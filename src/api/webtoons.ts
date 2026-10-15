@@ -18,6 +18,9 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   try {
     const signal = init.signal ? AbortSignal.any([init.signal, AbortSignal.timeout(25_000)]) : AbortSignal.timeout(25_000)
     const response = await fetch(`${baseUrl}${path}`, { ...init, signal })
+    if (response.headers.get('content-type')?.toLowerCase().includes('text/html')) {
+      throw new Error('웹툰 API 연결 설정을 확인해야 해요. 잠시 후 다시 시도해주세요.')
+    }
     if (!response.ok) {
       const body = await response.json().catch(() => null) as { message?: string } | null
       throw new Error(body?.message ?? '서버에 연결하지 못했어요. 잠시 후 다시 시도해주세요.')
@@ -25,6 +28,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     return await response.json() as T
   } catch (error) {
     if (init.signal?.aborted) throw error
+    if (error instanceof SyntaxError) throw new Error('서버에서 올바른 웹툰 데이터를 받지 못했어요. 잠시 후 다시 시도해주세요.')
     if (error instanceof TypeError || (error instanceof DOMException && error.name === 'TimeoutError')) throw new Error('서버에 연결하지 못했어요. 잠시 후 다시 시도해주세요.')
     throw error
   }
