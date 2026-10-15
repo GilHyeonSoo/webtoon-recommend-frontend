@@ -1,109 +1,66 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
-import type { CSSProperties, KeyboardEvent } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import type { CSSProperties } from 'react'
+import { analyzeWebtoons } from './api/webtoons'
+import type { Analysis, Webtoon } from './api/webtoons'
+import { Cover } from './components/Cover'
 import { Recommendations } from './components/Recommendations'
-import { appendAnswer, getCurrentQuestion } from './quiz/questions'
-import type { AnswerRecord } from './quiz/questions'
-import { normalizeCatalogWebtoon, rankWebtoons } from './quiz/recommendations'
-import type { Webtoon } from './quiz/recommendations'
-import catalogJson from './data/webtoons.json'
-
-const catalog = (catalogJson as Webtoon[]).map((item) => normalizeCatalogWebtoon(item))
-
-export type { Provider } from './quiz/recommendations'
-
-const GlassScene = lazy(() => import('./components/GlassScene').then((module) => ({ default: module.GlassScene })))
+import { SearchDialog } from './components/SearchDialog'
+import brandIcon from './assets/icon.png'
+export type { Provider } from './api/webtoons'
 
 export function App() {
-  const [answers, setAnswers] = useState<AnswerRecord[]>([])
-  const stageRef = useRef<HTMLElement>(null)
-  const titleRef = useRef<HTMLHeadingElement>(null)
-  const buttons = useRef<(HTMLButtonElement | null)[]>([])
-  const question = getCurrentQuestion(answers)
-  const screenId = question?.id ?? 'results'
-  const previousScreen = useRef(screenId)
-  const recommendations = useMemo(() => question ? [] : rankWebtoons(catalog as Webtoon[], answers), [question, answers])
-
+  const [selected, setSelected] = useState<Webtoon[]>([])
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [stage, setStage] = useState<'select' | 'analyzing' | 'results'>('select')
+  const [analysis, setAnalysis] = useState<Analysis | null>(null)
+  const [complete, setComplete] = useState(false)
+  const [error, setError] = useState('')
+  const abort = useRef<AbortController | null>(null)
+  const addButton = useRef<HTMLButtonElement>(null)
+  const confirmButton = useRef<HTMLButtonElement>(null)
+  const heading = useRef<HTMLHeadingElement>(null)
+  useEffect(() => () => abort.current?.abort(), [])
   useEffect(() => {
-    if (previousScreen.current !== screenId) titleRef.current?.focus({ preventScroll: true })
-    previousScreen.current = screenId
-    buttons.current.length = question?.options.length ?? 0
-  }, [screenId, question])
-
-  function navigate(event: KeyboardEvent<HTMLButtonElement>, index: number) {
-    if (!question) return
-    const count = question.options.length
-    let next: number
-    switch (event.key) {
-      case 'ArrowRight': case 'ArrowDown': next = (index + 1) % count; break
-      case 'ArrowLeft': case 'ArrowUp': next = (index + count - 1) % count; break
-      case 'Home': next = 0; break
-      case 'End': next = count - 1; break
-      default: return
-    }
-    event.preventDefault()
-    buttons.current[next]?.focus()
+    if (stage === 'select') heading.current?.focus({ preventScroll: true })
+    window.scrollTo({ top: 0, behavior: 'instant' })
+  }, [stage])
+  function closeSearch() { setSearchOpen(false); requestAnimationFrame(() => (addButton.current ?? confirmButton.current)?.focus()) }
+  function choose(item: Webtoon) {
+    setSelected((current) => current.length < 3 && !current.some((entry) => entry.id === item.id) ? [...current, item] : current)
+    setError(''); closeSearch()
   }
-
-  return (
-    <main className={`stage${question ? '' : 'results-stage'}`} ref={stageRef} data-question={screenId}>
-      {question ? (
-        <div className="selection-content" key={question.id}>
-          <header className="question-heading">
-            <p className="step-label">질문 {String(answers.length + 1).padStart(2, '0')}</p>
-            <h1 className="question-title" id="quiz-question" ref={titleRef} tabIndex={-1}>{question.title}</h1>
-          </header>
-          <div className="orb-row" role="group" aria-labelledby="quiz-question" data-count={question.options.length}>
-            {question.options.map((option, index) => (
-              <button
-                key={`${question.id}-${option.id}`}
-                ref={(node) => { buttons.current[index] = node }}
-                className="orb-choice"
-                style={{ '--order': index } as CSSProperties}
-                type="button"
-                aria-label={option.label}
-                onClick={() => setAnswers((previous) => appendAnswer(previous, question.id, option.id))}
-                onKeyDown={(event) => navigate(event, index)}
-                onPointerMove={(event) => {
-                  const rect = event.currentTarget.getBoundingClientRect()
-                  event.currentTarget.dataset.pointerX = String((event.clientX - rect.left) / rect.width * 2 - 1)
-                  event.currentTarget.dataset.pointerY = String(1 - (event.clientY - rect.top) / rect.height * 2)
-                }}
-                onPointerLeave={(event) => {
-                  delete event.currentTarget.dataset.pointerX
-                  delete event.currentTarget.dataset.pointerY
-                }}
-              >
-                <span className="orb-surface" aria-hidden="true">
-                  <span className="orb-fallback" />
-                  <span className="orb-answer">{option.label}</span>
-                </span>
-              </button>
-            ))}
-          </div>
-          <nav className="quiz-navigation" aria-label="질문 이동">
-            <button className="text-button" type="button" disabled={!answers.length} onClick={() => setAnswers((previous) => previous.slice(0, -1))}>← 이전 질문</button>
-            <span className="quiz-hint">원을 눌러 답해주세요</span>
-            <button className="text-button" type="button" disabled={!answers.length} onClick={() => setAnswers([])}>처음부터</button>
-          </nav>
-        </div>
-      ) : (
-        <section className="results-content" aria-labelledby="result-title">
-          <header className="results-heading">
-            <p className="step-label">당신의 취향을 따라</p>
-            <h1 className="question-title" id="result-title" ref={titleRef} tabIndex={-1}>이 웹툰은 어떠세요?</h1>
-            <p className="results-description">현재 등록된 {catalog.length}개 작품을 기준으로 골랐어요.</p>
-          </header>
-          <Recommendations recommendations={recommendations} />
-          <nav className="result-navigation" aria-label="추천 이동">
-            <button className="text-button" type="button" onClick={() => setAnswers((previous) => previous.slice(0, -1))}>← 이전 답변 바꾸기</button>
-            <button className="restart-button" type="button" onClick={() => setAnswers([])}>다른 취향으로 다시 찾기</button>
-          </nav>
-        </section>
-      )}
-      <Suspense fallback={null}><GlassScene stageRef={stageRef} /></Suspense>
-      <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
-        {question ? `${answers.length + 1}번째 질문. ${question.title}. 답변 ${question.options.length}개.` : `${recommendations.length}개의 추천 작품을 찾았어요.`}
-      </p>
-    </main>
-  )
+  function remove(id: string) {
+    setSelected((current) => current.filter((item) => item.id !== id)); setError('')
+    requestAnimationFrame(() => addButton.current?.focus({ preventScroll: true }))
+  }
+  async function analyze() {
+    if (!selected.length || stage !== 'select' || abort.current) return
+    const controller = new AbortController(); abort.current = controller
+    setError(''); setComplete(false); setStage('analyzing')
+    try {
+      const [result] = await Promise.all([analyzeWebtoons(selected.map((item) => item.id), controller.signal), new Promise((resolve) => setTimeout(resolve, 900))])
+      if (controller.signal.aborted) return
+      setComplete(true)
+      await new Promise((resolve) => setTimeout(resolve, 250))
+      if (controller.signal.aborted) return
+      setAnalysis(result); setStage('results')
+    } catch (cause) {
+      if (!controller.signal.aborted) { setError(cause instanceof Error ? cause.message : '분석을 완료하지 못했어요.'); setStage('select') }
+    } finally { if (abort.current === controller) abort.current = null }
+  }
+  function edit() { setStage('select'); setAnalysis(null); setError('') }
+  return <main className={`app-shell ${stage}`}>
+    <header className="site-header"><a href="#" className="brand" onClick={(event) => { event.preventDefault(); if (stage !== 'analyzing') edit() }}><img className="brand-mark" src={brandIcon} alt="" width={36} height={36} />웹툰추천</a></header>
+    {stage === 'select' && <section className="selection-content" aria-labelledby="selection-title"><header className="selection-heading"><h1 className="question-title" id="selection-title" ref={heading} tabIndex={-1}>평소에 즐겨보는 웹툰을 선택해주세요.</h1><p className="subtitle">좋아하는 이야기에서, 다음으로 좋아할 이야기를 찾아드릴게요.</p></header>
+      <div className="selection-row" aria-label="선택한 웹툰" data-count={selected.length}>
+        {selected.map((item, index) => <article className="selected-cover" key={item.id} style={{ '--order': index } as CSSProperties}><div className="selected-image"><Cover webtoon={item} eager /><span className="selected-index">{String(index + 1).padStart(2, '0')}</span><button className="remove-button" aria-label={`${item.title.trim()} 선택 삭제`} onClick={() => remove(item.id)}>×</button></div><h2>{item.title.trim()}</h2></article>)}
+        {selected.length < 3 && <button ref={addButton} className="add-card" aria-label="즐겨보는 웹툰 추가" onClick={() => setSearchOpen(true)}><span className="add-card-content"><span className="plus-sign" aria-hidden="true">＋</span><span>웹툰 추가</span><span className="add-card-detail">좋아하는 이야기를 찾아보세요</span></span></button>}
+      </div>
+      <div className="selection-actions"><p className="selection-count" role="status" aria-live="polite"><strong>{selected.length}</strong> / 3 <span>최대 3개까지 선택할 수 있어요</span></p><button ref={confirmButton} className="primary-button confirm-button" disabled={!selected.length} onClick={analyze}>확인 <span aria-hidden="true">→</span></button>{error && <p className="request-error" role="alert">{error}<br /><span>선택한 작품은 그대로예요. 확인을 눌러 다시 시도해주세요.</span></p>}</div>
+      <p className="selection-footnote">한 작품만 골라도 괜찮아요.</p>
+    </section>}
+    {stage === 'analyzing' && <section className="analysis-content" aria-labelledby="analysis-title" aria-busy={!complete}><div className="analysis-covers">{selected.map((item, index) => <div className="analysis-cover" key={item.id} style={{ '--order': index } as CSSProperties}><Cover webtoon={item} eager /></div>)}</div><p className="eyebrow">이야기 속 취향을 찾는 중</p><h1 className="question-title" id="analysis-title">{complete ? '당신의 다음 이야기를 찾았어요.' : '당신의 취향을 분석중이에요.'}</h1><p className="subtitle">좋아하는 작품들의 장르, 태그, 줄거리를 함께 살펴보고 있어요.</p><div className={`loading-track${complete ? ' complete' : ''}`} role="progressbar" aria-label="취향 분석" aria-valuetext={complete ? '분석 완료' : '분석중'} aria-valuenow={complete ? 100 : undefined}><span /></div><p className="loading-caption" role="status">{complete ? '추천을 보여드릴게요' : '새로운 이야기가 곧 펼쳐져요'}</p></section>}
+    {stage === 'results' && analysis && <Recommendations analysis={analysis} onEdit={edit} />}
+    {searchOpen && <SearchDialog selected={selected} onSelect={choose} onClose={closeSearch} />}
+  </main>
 }
